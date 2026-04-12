@@ -1,0 +1,110 @@
+{
+  "info": {
+    "name": "i8now — Worker timesheets",
+    "description": "Clock-in / clock-out / GET timesheet + GET applications (timesheet summary).\n\n**Prerequisites**\n1. `POST /api/v1/auth/request-otp` then `verify-otp` → set `token`.\n2. Worker profile exists; KYC approved + payout for apply.\n3. Application must be `confirmed` before clock-in (employer flow not in this repo — set in MongoDB for dev):\n   `db.shiftapplications.updateOne({_id:\"app_…\"},{$set:{status:\"confirmed\"}})`\n4. Shift **date** must be **today** (UTC calendar day) and current time within **[start−30m, end]** for clock-in. Update seed shift `date` if needed:\n   `db.shifts.updateOne({_id:\"shft_01j2k3\"},{$set:{date: ISODate(\"2026-04-11T00:00:00.000Z\")}})` (use your test day).\n5. Use coordinates **on or inside** the shift geofence (see seed: `shft_01j2k3` uses `location_lat` 26.9, `location_lng` 75.8, `geofence_radius_m` 200).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" },
+    { "key": "applicationId", "value": "app_REPLACE_ME" },
+    { "key": "timesheetId", "value": "ts_REPLACE_ME" }
+  ],
+  "item": [
+    {
+      "name": "POST Clock-in (success)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lat\": 26.9,\n  \"lng\": 75.8,\n  \"accuracy_m\": 12\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/timesheets/{{applicationId}}/clock-in",
+        "description": "201 — creates timesheet `open`. Copy `data.id` → `timesheetId` variable."
+      }
+    },
+    {
+      "name": "POST Clock-in (fail — already clocked in)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lat\": 26.9,\n  \"lng\": 75.8\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/timesheets/{{applicationId}}/clock-in",
+        "description": "409 `CLOCK_IN_ALREADY_DONE`"
+      }
+    },
+    {
+      "name": "POST Clock-in (fail — outside geofence)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lat\": 12.97,\n  \"lng\": 77.59\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/timesheets/{{applicationId}}/clock-in",
+        "description": "400 `CLOCK_IN_OUTSIDE_GEOFENCE` (use a different application id without existing timesheet)"
+      }
+    },
+    {
+      "name": "POST Clock-out (success)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lat\": 26.9,\n  \"lng\": 75.8\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/timesheets/{{applicationId}}/clock-out",
+        "description": "200 — `status` becomes `pending`; `total_hours`, `gross_amount` set."
+      }
+    },
+    {
+      "name": "POST Clock-out (empty body)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": "{{baseUrl}}/api/v1/timesheets/{{applicationId}}/clock-out",
+        "description": "Optional lat/lng on clock-out; `{}` is valid if still open (use after deleting timesheet or second app)."
+      }
+    },
+    {
+      "name": "GET Timesheet by id",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/timesheets/{{timesheetId}}",
+        "description": "200 — full card (worker + shift + amounts). Worker must own the timesheet."
+      }
+    },
+    {
+      "name": "GET My applications (timesheet summary)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/workers/applications?page=1&limit=20",
+        "description": "`data.applications[].timesheet` → `{ id, status, total_hours }` or null."
+      }
+    }
+  ]
+}

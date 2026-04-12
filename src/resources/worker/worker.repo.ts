@@ -52,6 +52,10 @@ type WorkerProfilePatch = {
   radius_km?: number
   category_ids?: string[]
   kyc_status?: string
+  payout_account_holder?: string | null
+  payout_masked_account?: string | null
+  payout_upi_id?: string | null
+  payout_verified?: boolean
 }
 
 /** Applies only defined keys; returns null if no profile exists for this user. */

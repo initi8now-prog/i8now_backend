@@ -25,6 +25,10 @@ export async function ensureDefaultCategories(): Promise<void> {
   await CategoryModel.insertMany(SEED_ROWS)
 }
 
+export async function findById(id: string): Promise<CategoryDoc | null> {
+  return CategoryModel.findById(id).exec()
+}
+
 /** Returns every row whose _id is in `ids` (order not guaranteed — caller sorts). */
 export async function findByIds(ids: string[]): Promise<CategoryDoc[]> {
   if (ids.length === 0) return []

@@ -31,7 +31,12 @@ const workerProfileSchema = new mongoose.Schema(
     total_shifts: { type: Number, default: 0 },
     /** Ordered list of Category._id values the worker selected (PUT /workers/categories). */
     category_ids: { type: [String], default: [] },
-  }, 
+    /** Payout snapshot — required before applying to shifts (see apply rules). */
+    payout_account_holder: { type: String, default: null },
+    payout_masked_account: { type: String, default: null },
+    payout_upi_id: { type: String, default: null },
+    payout_verified: { type: Boolean, default: false },
+  },
   { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } },
 )
 

@@ -40,6 +40,9 @@ export const updateWorkerProfileSchema = z
     location_lng: z.number().min(-180).max(180).optional(),
     city: z.string().min(2).max(100).optional(),
     radius_km: z.number().min(1).max(100).optional(),
+    payout_account_holder: z.string().max(200).nullable().optional(),
+    payout_masked_account: z.string().max(80).nullable().optional(),
+    payout_upi_id: z.string().max(120).nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Provide at least one field to update',

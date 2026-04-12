@@ -25,6 +25,13 @@ router.put(
   asyncHandler(workerController.updateProfile),
 )
 
+router.get(
+  '/applications',
+  requireAuth,
+  requireRole('worker'),
+  asyncHandler(workerController.listMyApplications),
+)
+
 router.get('/me', requireAuth, requireRole('worker'), asyncHandler(workerController.getMe))
 
 router.put(

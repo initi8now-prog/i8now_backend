@@ -11,6 +11,29 @@ import type { UserRole } from '../user/user.types.js'
 import { verifyAccessToken } from '../../utils/jwt.js'
 
 /**
+ * If `Authorization: Bearer` is present and valid, sets `req.user`.
+ * Invalid or missing token does **not** fail the request — used for routes that
+ * behave differently when a user is logged in (e.g. `applied` on shift list).
+ */
+export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
+  const raw = req.headers.authorization
+  const token = typeof raw === 'string' ? raw.replace(/^Bearer\s+/i, '').trim() : ''
+  if (!token) {
+    next()
+    return
+  }
+
+  const env = loadEnv()
+  try {
+    const payload = verifyAccessToken(token, env.JWT_ACCESS_SECRET)
+    req.user = { id: payload.sub, role: payload.role }
+  } catch {
+    // Ignore bad/expired token — treat as anonymous for this request.
+  }
+  next()
+}
+
+/**
  * Requires `Authorization: Bearer <access_token>`. Sets `req.user` with id + role.
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {

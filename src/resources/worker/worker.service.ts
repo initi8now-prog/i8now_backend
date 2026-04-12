@@ -210,6 +210,27 @@ function mapQualificationRow(q: WorkerQualificationDoc): QualificationPreview {
   }
 }
 
+function buildPayoutPreview(profile: WorkerProfileDoc): PayoutPreview {
+  const p = profile as WorkerProfileDoc & {
+    payout_account_holder?: string | null
+    payout_masked_account?: string | null
+    payout_upi_id?: string | null
+    payout_verified?: boolean
+  }
+  const hasAny =
+    (p.payout_upi_id && p.payout_upi_id.length > 0) ||
+    (p.payout_account_holder && p.payout_account_holder.length > 0)
+  if (!hasAny && !p.payout_verified) {
+    return null
+  }
+  return {
+    account_holder: p.payout_account_holder ?? '',
+    masked_account: p.payout_masked_account ?? '',
+    upi_id: p.payout_upi_id ?? '',
+    verified: p.payout_verified ?? false,
+  }
+}
+
 function mapDocumentRow(d: WorkerDocumentDoc): DocumentPreview {
   const reviewed = d.reviewed_at
   return {
@@ -298,6 +319,15 @@ export async function updateProfile(userId: string, body: UpdateWorkerProfileBod
   if (body.radius_km !== undefined) {
     patch.radius_km = body.radius_km
   }
+  if (body.payout_account_holder !== undefined) {
+    patch.payout_account_holder = body.payout_account_holder
+  }
+  if (body.payout_masked_account !== undefined) {
+    patch.payout_masked_account = body.payout_masked_account
+  }
+  if (body.payout_upi_id !== undefined) {
+    patch.payout_upi_id = body.payout_upi_id
+  }
 
   const updated = await workerRepo.updateByUserId(userId, patch)
   if (!updated) {
@@ -337,6 +367,8 @@ export async function getMyProfile(userId: string): Promise<MeProfileResult> {
   const docs = await workerDocumentRepo.listByWorkerProfileId(profile._id)
   const documents = docs.map(mapDocumentRow)
 
+  const payout_account = buildPayoutPreview(profile)
+
   return {
     id: profile._id,
     user_id: profile.user_id,
@@ -355,7 +387,7 @@ export async function getMyProfile(userId: string): Promise<MeProfileResult> {
     categories: categoriesOrdered,
     qualifications,
     documents,
-    payout_account: null,
+    payout_account,
     created_at: created ? created.toISOString() : new Date().toISOString(),
     updated_at: updated ? updated.toISOString() : new Date().toISOString(),
   }

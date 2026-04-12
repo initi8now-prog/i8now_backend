@@ -6,8 +6,10 @@
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 import type { Request, Response } from 'express'
+import * as shiftService from '../shift/shift.service.js'
 import * as workerService from './worker.service.js'
-import { success } from '../../utils/apiResponse.js'
+import { paginated, success } from '../../utils/apiResponse.js'
+import { myApplicationsQuerySchema } from '../shift/shift.validator.js'
 import {
   addWorkerDocumentSchema,
   addWorkerQualificationSchema,
@@ -37,6 +39,24 @@ export async function getMe(req: Request, res: Response): Promise<void> {
   const userId = req.user!.id
   const data = await workerService.getMyProfile(userId)
   res.status(200).json(success(data, 'OK'))
+}
+
+/** GET /api/v1/workers/applications — paginated shift applications for this worker. */
+export async function listMyApplications(req: Request, res: Response): Promise<void> {
+  const q = myApplicationsQuerySchema.parse(req.query)
+  const userId = req.user!.id
+  const result = await shiftService.listMyApplications(userId, q)
+  res
+    .status(200)
+    .json(
+      paginated(
+        { applications: result.applications },
+        result.total,
+        result.page,
+        result.limit,
+        'OK',
+      ),
+    )
 }
 
 /** PUT /api/v1/workers/categories — replace selected job categories (1–10 ids). */
