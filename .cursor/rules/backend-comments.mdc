@@ -1,0 +1,34 @@
+---
+description: i8now backend — file headers and plain-language comments (apply to all new/edited TS)
+globs: ["i8now_backend/src/**/*.ts", "src/**/*.ts"]
+alwaysApply: true
+---
+
+# Comment style for `i8now_backend`
+
+When adding or editing TypeScript under `src/`:
+
+1. **File header (decorative box)**  
+   At the top of every file (after any `///` references), use a short `/* ═══ ... ═══ */` block that explains in **simple English**:
+   - what this file is responsible for
+   - how it fits next to routes / controllers / services / repos / utils
+
+2. **Section comments**  
+   For non-obvious steps inside longer functions (especially services), add a one-line `//` or short block before each phase (e.g. rate limit → hash → persist).
+
+3. **Repositories**  
+   State clearly: “DB only, no business rules.”
+
+4. **Controllers**  
+   State clearly: “validate → service → JSON; no DB.”
+
+5. **Validators**  
+   Mention Zod as the single source of truth for request body types.
+
+6. **Models**  
+   Keep the existing pattern: box header + short per-field `/** ... */` where helpful.
+
+7. **Avoid**  
+   Obvious noise (`// increment i by 1`), and repeating the identifier name without adding meaning.
+
+This matches the decorative style already used in resource modules (e.g. `src/resources/auth/auth.service.ts`).
