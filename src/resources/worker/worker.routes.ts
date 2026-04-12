@@ -17,12 +17,35 @@ router.post(
   requireRole('worker'),
   asyncHandler(workerController.createProfile),
 )
+
 router.put(
   '/profile',
   requireAuth,
   requireRole('worker'),
   asyncHandler(workerController.updateProfile),
 )
+
 router.get('/me', requireAuth, requireRole('worker'), asyncHandler(workerController.getMe))
+
+router.put(
+  '/categories',
+  requireAuth,
+  requireRole('worker'),
+  asyncHandler(workerController.setCategories),
+)
+
+router.post(
+  '/qualifications',
+  requireAuth,
+  requireRole('worker'),
+  asyncHandler(workerController.addQualification),
+)
+
+router.post(
+  '/documents',
+  requireAuth,
+  requireRole('worker'),
+  asyncHandler(workerController.addDocument),
+)
 
 export { router as workerRouter }

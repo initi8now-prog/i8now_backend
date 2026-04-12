@@ -37,6 +37,7 @@ export async function create(input: CreateWorkerProfileInput): Promise<WorkerPro
     kyc_status: 'unverified',
     rating_avg: 0,
     total_shifts: 0,
+    category_ids: [],
   })
   return doc
 }
@@ -49,6 +50,8 @@ type WorkerProfilePatch = {
   location_lng?: number
   city?: string
   radius_km?: number
+  category_ids?: string[]
+  kyc_status?: string
 }
 
 /** Applies only defined keys; returns null if no profile exists for this user. */

@@ -10,6 +10,7 @@ import { connectMongo } from './config/db.js'
 import { createLogger } from './utils/logger.js'
 import { initLogger } from './instrumentation/logger.js'
 import { createApp } from './app.js'
+import { ensureDefaultCategories } from './resources/worker/category.repo.js'
 
 async function main(): Promise<void> {
   const env = loadEnv()
@@ -17,6 +18,7 @@ async function main(): Promise<void> {
   initLogger(logger)
 
   await connectMongo(env.MONGODB_URI, logger)
+  await ensureDefaultCategories()
 
   const app = createApp(logger)
   app.listen(env.PORT, () => {

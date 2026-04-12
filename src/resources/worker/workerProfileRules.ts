@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════════
  *  workerProfileRules — small pure checks for worker profile onboarding
  *
- *  Used by worker.validator (DOB string checks) and worker.service (name + age).
- *  Keeps rules out of HTTP and DB layers so they stay easy to read and test.
+ *  Used by worker.validator (DOB string checks) and worker.service (name, age,
+ *  qualification “still ongoing?” flag). Keeps rules out of HTTP and DB layers.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
@@ -52,4 +52,21 @@ export function formatDobDate(d: Date): string {
   const m = String(d.getUTCMonth() + 1).padStart(2, '0')
   const day = String(d.getUTCDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+function startOfDayUtc(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+}
+
+/**
+ * True when there is no end date yet, or the end date is today or in the future (UTC day).
+ * False when the end date is strictly before today — the period is finished.
+ */
+export function isCurrentlyPursuingQualification(toDate: Date | null | undefined): boolean {
+  if (toDate === null || toDate === undefined) {
+    return true
+  }
+  const todayStart = startOfDayUtc(new Date())
+  const endStart = startOfDayUtc(toDate)
+  return endStart >= todayStart
 }

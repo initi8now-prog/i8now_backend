@@ -46,3 +46,29 @@ export const updateWorkerProfileSchema = z
   })
 
 export type UpdateWorkerProfileBody = z.infer<typeof updateWorkerProfileSchema>
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
+
+export const setWorkerCategoriesSchema = z.object({
+  category_ids: z.array(z.string().min(1)).min(1, 'At least one category must be selected').max(10),
+})
+
+export type SetWorkerCategoriesBody = z.infer<typeof setWorkerCategoriesSchema>
+
+export const addWorkerQualificationSchema = z.object({
+  type: z.enum(['education', 'work_experience', 'certification']),
+  title: z.string().min(1).max(200),
+  institution: z.string().min(1).max(200),
+  from_date: isoDate,
+  to_date: z.union([isoDate, z.null()]).optional(),
+  description: z.string().max(500).optional(),
+})
+
+export type AddWorkerQualificationBody = z.infer<typeof addWorkerQualificationSchema>
+
+export const addWorkerDocumentSchema = z.object({
+  type: z.enum(['govt_id', 'right_to_work', 'background_check']),
+  file_url: z.string().url('file_url must be a valid URL'),
+})
+
+export type AddWorkerDocumentBody = z.infer<typeof addWorkerDocumentSchema>

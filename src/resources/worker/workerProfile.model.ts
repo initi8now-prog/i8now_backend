@@ -29,7 +29,9 @@ const workerProfileSchema = new mongoose.Schema(
     },
     rating_avg: { type: Number, default: 0 },
     total_shifts: { type: Number, default: 0 },
-  },
+    /** Ordered list of Category._id values the worker selected (PUT /workers/categories). */
+    category_ids: { type: [String], default: [] },
+  }, 
   { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } },
 )
 

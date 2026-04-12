@@ -9,7 +9,10 @@ import type { Request, Response } from 'express'
 import * as workerService from './worker.service.js'
 import { success } from '../../utils/apiResponse.js'
 import {
+  addWorkerDocumentSchema,
+  addWorkerQualificationSchema,
   createWorkerProfileSchema,
+  setWorkerCategoriesSchema,
   updateWorkerProfileSchema,
 } from './worker.validator.js'
 
@@ -34,4 +37,28 @@ export async function getMe(req: Request, res: Response): Promise<void> {
   const userId = req.user!.id
   const data = await workerService.getMyProfile(userId)
   res.status(200).json(success(data, 'OK'))
+}
+
+/** PUT /api/v1/workers/categories — replace selected job categories (1–10 ids). */
+export async function setCategories(req: Request, res: Response): Promise<void> {
+  const body = setWorkerCategoriesSchema.parse(req.body)
+  const userId = req.user!.id
+  const data = await workerService.setWorkerCategories(userId, body)
+  res.status(200).json(success(data, 'Categories updated'))
+}
+
+/** POST /api/v1/workers/qualifications — add one education / work / cert row. */
+export async function addQualification(req: Request, res: Response): Promise<void> {
+  const body = addWorkerQualificationSchema.parse(req.body)
+  const userId = req.user!.id
+  const data = await workerService.addQualification(userId, body)
+  res.status(201).json(success(data, 'OK'))
+}
+
+/** POST /api/v1/workers/documents — register a KYC file URL for review. */
+export async function addDocument(req: Request, res: Response): Promise<void> {
+  const body = addWorkerDocumentSchema.parse(req.body)
+  const userId = req.user!.id
+  const data = await workerService.addDocument(userId, body)
+  res.status(201).json(success(data, 'Document submitted for review'))
 }
