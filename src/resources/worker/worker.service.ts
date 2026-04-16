@@ -12,6 +12,7 @@ import * as workerDocumentRepo from './workerDocument.repo.js'
 import * as workerQualificationRepo from './workerQualification.repo.js'
 import * as workerRepo from './worker.repo.js'
 import { AppError } from '../../utils/errors.js'
+import { safeRatingAvg } from '../../utils/rating.js'
 import {
   ageYearsUtc,
   formatDobDate,
@@ -140,8 +141,8 @@ type AddDocumentResult = {
   created_at: string
 }
 
-function roundRating(n: number): number {
-  return Math.round(n * 100) / 100
+function roundRating(n: unknown): number {
+  return safeRatingAvg(n)
 }
 
 function profileDocToCreated(doc: WorkerProfileDoc, onboardingStep: number): CreateProfileResult {

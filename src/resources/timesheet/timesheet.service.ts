@@ -20,11 +20,13 @@
  *  and shift end (UTC wall time from shift.date + start_time/end_time).
  * ═══════════════════════════════════════════════════════════════════════════ */
 
+import * as employerRepo from '../shift/employer.repo.js'
 import * as shiftApplicationRepo from '../shift/shiftApplication.repo.js'
 import * as shiftRepo from '../shift/shift.repo.js'
 import * as workerRepo from '../worker/worker.repo.js'
 import * as timesheetRepo from './timesheet.repo.js'
 import { AppError } from '../../utils/errors.js'
+import { safeRatingAvg } from '../../utils/rating.js'
 import { haversineMeters } from '../../utils/geo.js'
 import type { ShiftDoc } from '../shift/shift.model.js'
 import type { ClockInBody, ClockOutBody } from './timesheet.validator.js'
@@ -68,6 +70,10 @@ type TimesheetDetailResult = {
   id: string
   application_id: string
   worker: { id: string; full_name: string; avatar_url: string | null; rating_avg: number }
+  /** 1–5 stars worker gave the employer; null if not submitted yet. */
+  worker_rating_employer: number | null
+  /** 1–5 stars employer gave the worker (often via admin until employer app exists). */
+  employer_rating_worker: number | null
   shift: {
     id: string
     title: string
@@ -268,8 +274,10 @@ export async function getTimesheetForWorker(
       id: profile._id,
       full_name: profile.full_name,
       avatar_url: profile.avatar_url ?? null,
-      rating_avg: profile.rating_avg ?? 0,
+      rating_avg: safeRatingAvg(profile.rating_avg),
     },
+    worker_rating_employer: ts.worker_rating_employer ?? null,
+    employer_rating_worker: ts.employer_rating_worker ?? null,
     shift: {
       id: s._id,
       title: s.title,
@@ -287,5 +295,59 @@ export async function getTimesheetForWorker(
     status: ts.status,
     approved_at: ts.approved_at ? ts.approved_at.toISOString() : null,
     dispute: null,
+  }
+}
+
+/**
+ * Worker submits 1–5 stars for the employer after the timesheet is approved (or paid).
+ * Updates the employer’s running average and stores the score on the timesheet once.
+ */
+export async function rateEmployerAsWorker(
+  userId: string,
+  timesheetId: string,
+  stars: number,
+): Promise<{ worker_rating_employer: number; employer_rating_avg: number }> {
+  if (stars < 1 || stars > 5 || !Number.isInteger(stars)) {
+    throw new AppError('INVALID_RATING', 400, 'Stars must be an integer from 1 to 5')
+  }
+
+  const profile = await workerRepo.findByUserId(userId)
+  if (!profile) {
+    throw new AppError('PROFILE_NOT_FOUND', 404, 'Worker profile does not exist yet')
+  }
+
+  const ts = await timesheetRepo.findById(timesheetId)
+  if (!ts) {
+    throw new AppError('TIMESHEET_NOT_FOUND', 404, 'Timesheet not found')
+  }
+  if (ts.worker_profile_id !== profile._id) {
+    throw new AppError('FORBIDDEN', 403, 'This timesheet belongs to another worker')
+  }
+  if (ts.worker_rating_employer != null) {
+    throw new AppError('RATING_ALREADY_SET', 409, 'You have already rated this employer for this job')
+  }
+  if (ts.status !== 'approved' && ts.status !== 'paid') {
+    throw new AppError('TIMESHEET_NOT_RATING_READY', 400, 'Rate the employer after the timesheet is approved')
+  }
+
+  const s = await shiftRepo.findById(ts.shift_id)
+  if (!s) {
+    throw new AppError('SHIFT_NOT_FOUND', 404, 'Shift does not exist')
+  }
+
+  const updated = await timesheetRepo.setWorkerRatingForEmployer(timesheetId, stars)
+  if (!updated) {
+    throw new AppError('RATING_NOT_SAVED', 409, 'Could not save rating — try again')
+  }
+
+  const emp = await employerRepo.incrementRatingFromWorker(s.employer_id, stars)
+  if (!emp) {
+    await timesheetRepo.clearWorkerRatingForEmployer(timesheetId)
+    throw new AppError('EMPLOYER_NOT_FOUND', 404, 'Employer profile not found')
+  }
+
+  return {
+    worker_rating_employer: stars,
+    employer_rating_avg: safeRatingAvg(emp.rating_avg),
   }
 }

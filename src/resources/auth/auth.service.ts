@@ -27,6 +27,7 @@
 import { loadEnv } from '../../config/env.js'
 import {
   ACCESS_TOKEN_TTL_SEC,
+  MFA_TOKEN_TTL_SEC,
   OTP_LOCK_MINUTES,
   OTP_MAX_ATTEMPTS,
   OTP_RATE_DEVICE_PER_HOUR,
@@ -37,20 +38,49 @@ import {
 import * as otpChallengeRepo from './otpChallenge.repo.js'
 import * as otpRateRepo from './otpRate.repo.js'
 import * as refreshTokenRepo from './refreshToken.repo.js'
+import { promoteUserIfBootstrapEmail } from '../admin/admin.seed.js'
+import * as platformSettingsRepo from '../admin/platformSettings.repo.js'
 import * as userRepo from '../user/user.repo.js'
 import { hashOtp, hashToken, newOtpDigits, newRefreshTokenRaw, verifyOtpHash } from '../../utils/cryptoHelpers.js'
 import { AppError } from '../../utils/errors.js'
-import { signAccessToken } from '../../utils/jwt.js'
+import { signAccessToken, signMfaToken, verifyMfaToken } from '../../utils/jwt.js'
+import { verify as verifyTotp } from 'otplib'
 import { maskEmail, maskPhone } from '../../utils/mask.js'
+import { verifyPassword } from '../../utils/password.js'
 import { buildTargetKey } from './authTargets.js'
 import { getLogger } from '../../instrumentation/logger.js'
-import type { RequestOtpBody, VerifyOtpBody } from './auth.validator.js'
+import type { UserDoc } from '../user/user.model.js'
+import type { LoginPasswordBody, RequestOtpBody, VerifyAdminTotpBody, VerifyOtpBody } from './auth.validator.js'
 
 // Request OTP Result
 type RequestOtpResult = {
   otp_sent: boolean
   expires_in: number
   masked_target: string
+}
+
+function toPlainObject(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== 'object') return {}
+  const candidate = input as { toObject?: () => unknown }
+  if (typeof candidate.toObject === 'function') {
+    const plain = candidate.toObject()
+    return plain && typeof plain === 'object' ? (plain as Record<string, unknown>) : {}
+  }
+  return input as Record<string, unknown>
+}
+
+export async function getLoginUiSettings() {
+  const platform = await platformSettingsRepo.getOrCreatePlatformSettings()
+  const ui = toPlainObject(platform.ui_settings)
+  return {
+    site_display_name: platform.site_display_name ?? 'i8now',
+    login_left_image_url: (ui.login_left_image_url as string | null | undefined) ?? null,
+    login_left_heading:
+      (ui.login_left_heading as string | undefined) ?? 'Operations command centre',
+    login_left_caption:
+      (ui.login_left_caption as string | undefined) ??
+      'Manage workers, employers, timesheets, and platform settings from one place.',
+  }
 }
 
 /**
@@ -62,6 +92,14 @@ type RequestOtpResult = {
 export async function requestOtp(body: RequestOtpBody): Promise<RequestOtpResult> {
   const env = loadEnv()
   const logger = getLogger()
+
+  const platform = await platformSettingsRepo.getOrCreatePlatformSettings()
+  if (body.email && !platform.login_email_enabled) {
+    throw new AppError('AUTH_CHANNEL_DISABLED', 403, 'Email sign-in is disabled for this platform')
+  }
+  if (body.phone && !platform.login_phone_enabled) {
+    throw new AppError('AUTH_CHANNEL_DISABLED', 403, 'Phone sign-in is disabled for this platform')
+  }
 
   // One string that always means “this phone” or “this email” everywhere (DB + limits).
   const target_key = buildTargetKey(body.phone, body.email)
@@ -84,6 +122,12 @@ export async function requestOtp(body: RequestOtpBody): Promise<RequestOtpResult
   const existingUser = body.phone
     ? await userRepo.findByPhone(body.phone)
     : await userRepo.findByEmail(body.email!.toLowerCase())
+  if (existingUser && existingUser.deleted_at) {
+    throw new AppError('AUTH_ACCOUNT_DELETED', 403, 'This account has been deactivated')
+  }
+  if (existingUser && existingUser.status === 'suspended') {
+    throw new AppError('AUTH_ACCOUNT_SUSPENDED', 403, 'Account is suspended')
+  }
   if (existingUser && existingUser.status === 'banned') {
     throw new AppError('AUTH_TARGET_BANNED', 403, 'This phone/email is banned from the platform')
   }
@@ -115,18 +159,119 @@ export async function requestOtp(body: RequestOtpBody): Promise<RequestOtpResult
 }
 
 // Verify OTP
-type VerifyOtpResult = {
-  access_token: string
-  refresh_token: string
-  token_type: 'Bearer'
-  expires_in: number
-  user: {
-    id: string
-    role: string
-    status: string
-    is_new: boolean
-    onboarding_step: number
+type VerifyOtpResult =
+  | {
+      access_token: string
+      refresh_token: string
+      token_type: 'Bearer'
+      expires_in: number
+      user: {
+        id: string
+        role: string
+        status: string
+        is_new: boolean
+        onboarding_step: number
+      }
+    }
+  | {
+      mfa_required: true
+      mfa_token: string
+      token_type: 'Bearer'
+      expires_in: number
+      user: {
+        id: string
+        role: string
+        status: string
+        is_new: boolean
+        onboarding_step: number
+      }
+    }
+
+function assertAccountAllowedToLogin(user: UserDoc): void {
+  if (user.deleted_at) {
+    throw new AppError('AUTH_ACCOUNT_DELETED', 403, 'This account has been deactivated')
   }
+  if (user.status === 'suspended') {
+    throw new AppError('AUTH_ACCOUNT_SUSPENDED', 403, 'Account is suspended')
+  }
+  if (user.status === 'banned') {
+    throw new AppError('AUTH_ACCOUNT_BANNED', 403, 'Account is banned')
+  }
+}
+
+async function issueLoginAfterVerifiedUser(user: UserDoc, is_new: boolean): Promise<VerifyOtpResult> {
+  const env = loadEnv()
+  const userId = String(user._id)
+  const role = user.role as 'worker' | 'employer' | 'admin'
+
+  const platform = await platformSettingsRepo.getOrCreatePlatformSettings()
+  const hasTotp =
+    platform.admin_totp_required &&
+    role === 'admin' &&
+    user.totp_enabled === true &&
+    typeof user.totp_secret === 'string' &&
+    user.totp_secret.length > 0
+
+  if (hasTotp) {
+    const mfa_token = signMfaToken(userId, env.JWT_ACCESS_SECRET, MFA_TOKEN_TTL_SEC)
+    return {
+      mfa_required: true,
+      mfa_token,
+      token_type: 'Bearer',
+      expires_in: MFA_TOKEN_TTL_SEC,
+      user: {
+        id: userId,
+        role,
+        status: user.status,
+        is_new,
+        onboarding_step: user.onboarding_step ?? 0,
+      },
+    }
+  }
+
+  const refreshRaw = newRefreshTokenRaw()
+  const refreshHash = hashToken(refreshRaw, env.JWT_REFRESH_SECRET)
+  const refreshExpires = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000)
+  await refreshTokenRepo.createRefreshToken(userId, refreshHash, refreshExpires)
+
+  const access_token = signAccessToken(userId, role, env.JWT_ACCESS_SECRET, ACCESS_TOKEN_TTL_SEC)
+
+  return {
+    access_token,
+    refresh_token: refreshRaw,
+    token_type: 'Bearer',
+    expires_in: ACCESS_TOKEN_TTL_SEC,
+    user: {
+      id: userId,
+      role,
+      status: user.status,
+      is_new,
+      onboarding_step: user.onboarding_step ?? 0,
+    },
+  }
+}
+
+/**
+ * Password sign-in (when enabled by an admin). Same token / admin-TOTP behaviour as OTP success.
+ */
+export async function loginWithPassword(body: LoginPasswordBody): Promise<VerifyOtpResult> {
+  const emailNorm = body.email?.toLowerCase()
+  const user = body.phone
+    ? await userRepo.findByPhone(body.phone)
+    : await userRepo.findByEmail(emailNorm!)
+
+  if (!user || !user.password_login_enabled || !user.password_hash) {
+    throw new AppError('AUTH_INVALID_CREDENTIALS', 401, 'Invalid email or password')
+  }
+
+  const ok = await verifyPassword(body.password, user.password_hash)
+  if (!ok) {
+    throw new AppError('AUTH_INVALID_CREDENTIALS', 401, 'Invalid email or password')
+  }
+
+  assertAccountAllowedToLogin(user)
+
+  return issueLoginAfterVerifiedUser(user, false)
 }
 
 /**
@@ -188,23 +333,65 @@ export async function verifyOtp(body: VerifyOtpBody): Promise<VerifyOtpResult> {
     is_new = true
   }
 
-  if (user.status === 'banned') {
-    throw new AppError('AUTH_ACCOUNT_BANNED', 403, 'Account is banned')
-  }
+  user = await promoteUserIfBootstrapEmail(user, emailNorm)
+
+  assertAccountAllowedToLogin(user)
 
   await otpChallengeRepo.deleteByTargetAndDevice(target_key, body.device_id)
+
+  return issueLoginAfterVerifiedUser(user, is_new)
+}
+
+type VerifyAdminTotpResult = {
+  access_token: string
+  refresh_token: string
+  token_type: 'Bearer'
+  expires_in: number
+  user: {
+    id: string
+    role: string
+    status: string
+    is_new: boolean
+    onboarding_step: number
+  }
+}
+
+/**
+ * Second step for admins with TOTP enabled: completes login after email OTP + `mfa_token`.
+ */
+export async function verifyAdminTotp(body: VerifyAdminTotpBody): Promise<VerifyAdminTotpResult> {
+  const env = loadEnv()
+  let userId: string
+  try {
+    const payload = verifyMfaToken(body.mfa_token, env.JWT_ACCESS_SECRET)
+    userId = payload.sub
+  } catch {
+    throw new AppError('AUTH_MFA_INVALID', 401, 'MFA token invalid or expired — start sign-in again')
+  }
+
+  const user = await userRepo.findById(userId)
+  if (!user || user.role !== 'admin' || user.deleted_at) {
+    throw new AppError('AUTH_MFA_INVALID', 401, 'Invalid MFA session')
+  }
+  if (!user.totp_enabled || !user.totp_secret) {
+    throw new AppError('AUTH_TOTP_NOT_CONFIGURED', 400, 'Authenticator is not enabled for this account')
+  }
+
+  const check = await verifyTotp({ secret: user.totp_secret, token: body.totp })
+  if (!check.valid) {
+    throw new AppError('AUTH_TOTP_INVALID', 400, 'Invalid authenticator code')
+  }
+
+  assertAccountAllowedToLogin(user)
 
   const refreshRaw = newRefreshTokenRaw()
   const refreshHash = hashToken(refreshRaw, env.JWT_REFRESH_SECRET)
   const refreshExpires = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000)
-  await refreshTokenRepo.createRefreshToken(user._id, refreshHash, refreshExpires)
+  const uid = String(user._id)
+  const role = user.role as 'worker' | 'employer' | 'admin'
+  await refreshTokenRepo.createRefreshToken(uid, refreshHash, refreshExpires)
 
-  const access_token = signAccessToken(
-    user._id,
-    user.role,
-    env.JWT_ACCESS_SECRET,
-    ACCESS_TOKEN_TTL_SEC,
-  )
+  const access_token = signAccessToken(uid, role, env.JWT_ACCESS_SECRET, ACCESS_TOKEN_TTL_SEC)
 
   return {
     access_token,
@@ -212,11 +399,11 @@ export async function verifyOtp(body: VerifyOtpBody): Promise<VerifyOtpResult> {
     token_type: 'Bearer',
     expires_in: ACCESS_TOKEN_TTL_SEC,
     user: {
-      id: user._id,
-      role: user.role,
+      id: uid,
+      role,
       status: user.status,
-      is_new,
-      onboarding_step: user.onboarding_step,
+      is_new: false,
+      onboarding_step: user.onboarding_step ?? 0,
     },
   }
 }
@@ -247,10 +434,18 @@ export async function refreshAccessToken(refresh_token: string): Promise<Refresh
   if (!user) {
     throw new AppError('AUTH_REFRESH_INVALID', 401, 'Refresh token is invalid or does not exist')
   }
+  if (user.deleted_at) {
+    await refreshTokenRepo.deleteByTokenHash(token_hash)
+    throw new AppError('AUTH_ACCOUNT_DELETED', 403, 'This account has been deactivated')
+  }
+  if (user.status === 'suspended') {
+    await refreshTokenRepo.deleteByTokenHash(token_hash)
+    throw new AppError('AUTH_ACCOUNT_SUSPENDED', 403, 'Account is suspended')
+  }
 
   const access_token = signAccessToken(
-    user._id,
-    user.role,
+    String(user._id),
+    user.role as 'worker' | 'employer' | 'admin',
     env.JWT_ACCESS_SECRET,
     ACCESS_TOKEN_TTL_SEC,
   )

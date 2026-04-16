@@ -15,7 +15,7 @@
 import type { Request, Response } from 'express'
 import { success } from '../../utils/apiResponse.js'
 import * as timesheetService from './timesheet.service.js'
-import { clockInBodySchema, clockOutBodySchema } from './timesheet.validator.js'
+import { clockInBodySchema, clockOutBodySchema, rateEmployerBodySchema } from './timesheet.validator.js'
 
 /** POST /api/v1/timesheets/:applicationId/clock-in — body: worker lat/lng (+ optional accuracy_m). */
 export async function clockIn(req: Request, res: Response): Promise<void> {
@@ -31,6 +31,14 @@ export async function clockOut(req: Request, res: Response): Promise<void> {
   const userId = req.user!.id
   const data = await timesheetService.clockOut(userId, req.params.applicationId, body)
   res.status(200).json(success(data, 'Clocked out'))
+}
+
+/** POST /api/v1/timesheets/:id/rate-employer — worker rates the employer (1–5) once per job. */
+export async function rateEmployer(req: Request, res: Response): Promise<void> {
+  const body = rateEmployerBodySchema.parse(req.body)
+  const userId = req.user!.id
+  const data = await timesheetService.rateEmployerAsWorker(userId, req.params.id, body.stars)
+  res.status(200).json(success(data, 'Rating saved'))
 }
 
 /** GET /api/v1/timesheets/:id — timesheet id (`ts_…`), not application id. */

@@ -22,6 +22,7 @@ export async function ensureShiftSeed(): Promise<void> {
     company_name: 'Regal Events Pvt Ltd',
     logo_url: 'https://cdn.gigwork.in/logos/emp_01.png',
     rating_avg: 4.3,
+    rating_count: 1,
     verified: true,
     total_shifts_posted: 5,
   })

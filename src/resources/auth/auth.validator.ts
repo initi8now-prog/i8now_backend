@@ -58,3 +58,33 @@ export const refreshTokenSchema = z.object({
 })
 
 export type RefreshTokenBody = z.infer<typeof refreshTokenSchema>
+
+/** POST /auth/verify-admin-totp — complete admin login after email OTP when TOTP is enabled. */
+export const verifyAdminTotpSchema = z.object({
+  mfa_token: z.string().min(1, 'mfa_token is required'),
+  totp: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
+})
+
+export type VerifyAdminTotpBody = z.infer<typeof verifyAdminTotpSchema>
+
+/** POST /auth/login-password — email or phone + password when enabled on the account. */
+export const loginPasswordSchema = z
+  .object({
+    phone: e164.optional(),
+    email: z.string().email().optional(),
+    password: z.string().min(1, 'password is required'),
+    device_id: z.string().min(1, 'device_id is required'),
+  })
+  .superRefine((data, ctx) => {
+    const hasPhone = data.phone !== undefined
+    const hasEmail = data.email !== undefined
+    if (hasPhone === hasEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide exactly one of phone or email',
+        path: ['phone'],
+      })
+    }
+  })
+
+export type LoginPasswordBody = z.infer<typeof loginPasswordSchema>

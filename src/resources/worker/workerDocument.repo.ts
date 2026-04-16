@@ -40,3 +40,20 @@ export async function hasBlockingDuplicate(
     .exec()
   return found !== null
 }
+
+export async function setStatusById(
+  id: string,
+  workerProfileId: string,
+  status: 'pending' | 'approved' | 'rejected',
+): Promise<WorkerDocumentDoc | null> {
+  return WorkerDocumentModel.findOneAndUpdate(
+    { _id: id, worker_profile_id: workerProfileId },
+    { $set: { status, reviewed_at: status === 'pending' ? null : new Date() } },
+    { new: true },
+  ).exec()
+}
+
+export async function deleteById(id: string, workerProfileId: string): Promise<boolean> {
+  const r = await WorkerDocumentModel.deleteOne({ _id: id, worker_profile_id: workerProfileId }).exec()
+  return r.deletedCount === 1
+}

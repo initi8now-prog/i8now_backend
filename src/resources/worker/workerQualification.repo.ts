@@ -35,3 +35,7 @@ export async function create(input: CreateQualInput): Promise<WorkerQualificatio
 export async function listByWorkerProfileId(workerProfileId: string): Promise<WorkerQualificationDoc[]> {
   return WorkerQualificationModel.find({ worker_profile_id: workerProfileId }).sort({ created_at: 1 }).exec()
 }
+
+export async function deleteById(id: string): Promise<WorkerQualificationDoc | null> {
+  return WorkerQualificationModel.findByIdAndDelete(id).exec()
+}

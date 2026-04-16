@@ -1,0 +1,170 @@
+{
+  "info": {
+    "name": "i8now — Admin API",
+    "description": "All requests need `Authorization: Bearer <access_token>` where the user has role `admin`.\n\n**Bootstrap admin:** Set `ADMIN_PROMOTE_EMAIL` in `.env` to an account that already exists (email OTP login), restart the server, then call `POST /api/v1/auth/refresh-token` (or verify-otp again) so the JWT includes `role: admin`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" },
+    { "key": "workerProfileId", "value": "wp_REPLACE" },
+    { "key": "employerId", "value": "emp_01" },
+    { "key": "timesheetId", "value": "ts_REPLACE" },
+    { "key": "userId", "value": "usr_REPLACE" }
+  ],
+  "item": [
+    {
+      "name": "GET Admin me",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/me"
+      }
+    },
+    {
+      "name": "GET List users",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/users?page=1&limit=20&role=&status=&search=&include_deleted=false"
+      }
+    },
+    {
+      "name": "POST Create user",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"role\": \"worker\",\n  \"status\": \"active\",\n  \"onboarding_step\": 0\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/admin/users"
+      }
+    },
+    {
+      "name": "GET User detail",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/users/{{userId}}"
+      }
+    },
+    {
+      "name": "PATCH User",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"active\",\n  \"role\": \"worker\",\n  \"onboarding_step\": 1\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/admin/users/{{userId}}"
+      }
+    },
+    {
+      "name": "DELETE User (soft)",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/users/{{userId}}"
+      }
+    },
+    {
+      "name": "POST Restore user",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/users/{{userId}}/restore"
+      }
+    },
+    {
+      "name": "GET List workers",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/workers?page=1&limit=20&kyc_status=pending&search="
+      }
+    },
+    {
+      "name": "GET Worker detail",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/workers/{{workerProfileId}}"
+      }
+    },
+    {
+      "name": "PATCH Worker KYC",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"kyc_status\": \"approved\",\n  \"note\": \"Documents verified.\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/admin/workers/{{workerProfileId}}/kyc"
+      }
+    },
+    {
+      "name": "GET List employers",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/employers?page=1&limit=20"
+      }
+    },
+    {
+      "name": "GET Employer detail",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/employers/{{employerId}}"
+      }
+    },
+    {
+      "name": "PATCH Employer verification",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"verified\": true\n}" },
+        "url": "{{baseUrl}}/api/v1/admin/employers/{{employerId}}/verification"
+      }
+    },
+    {
+      "name": "GET List timesheets",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/timesheets?page=1&limit=20&status=pending"
+      }
+    },
+    {
+      "name": "GET Timesheet detail",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/timesheets/{{timesheetId}}"
+      }
+    },
+    {
+      "name": "POST Approve timesheet",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/v1/admin/timesheets/{{timesheetId}}/approve"
+      }
+    }
+  ]
+}

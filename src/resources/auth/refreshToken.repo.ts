@@ -21,3 +21,8 @@ export async function findByTokenHash(token_hash: string): Promise<RefreshTokenD
 export async function deleteByTokenHash(token_hash: string): Promise<void> {
   await RefreshTokenModel.deleteOne({ token_hash }).exec()
 }
+
+/** Revokes every refresh session for a user (e.g. after soft-delete). */
+export async function deleteAllForUser(user_id: string): Promise<void> {
+  await RefreshTokenModel.deleteMany({ user_id }).exec()
+}

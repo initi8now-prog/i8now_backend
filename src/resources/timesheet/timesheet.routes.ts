@@ -5,10 +5,11 @@
  *    POST …/:applicationId/clock-in  — JSON body: worker’s lat/lng at clock-in
  *                                      (see timesheet.validator / timesheet.service).
  *    POST …/:applicationId/clock-out — optional worker lat/lng when leaving.
+ *    POST …/:id/rate-employer        — worker rates employer (1–5) after approval.
  *    GET  …/:id                      — timesheet document id (`ts_…`).
  *
- *  Order: literal segments `clock-in` and `clock-out` are registered before
- *  GET /:id so they are not mistaken for a timesheet id.
+ *  Order: `clock-in`, `clock-out`, and `rate-employer` are registered before GET /:id
+ *  so they are not mistaken for a timesheet id.
  *
  *  All routes: Bearer token + role worker.
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -30,6 +31,12 @@ router.post(
   requireAuth,
   requireRole('worker'),
   asyncHandler(timesheetController.clockOut),
+)
+router.post(
+  '/:id/rate-employer',
+  requireAuth,
+  requireRole('worker'),
+  asyncHandler(timesheetController.rateEmployer),
 )
 router.get(
   '/:id',

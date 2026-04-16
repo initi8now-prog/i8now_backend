@@ -46,6 +46,10 @@ const timesheetSchema = new mongoose.Schema(
       index: true,
     },
     approved_at: { type: Date, default: null },
+    /** 1–5 stars from the worker toward the employer; set once per timesheet. */
+    worker_rating_employer: { type: Number, default: null },
+    /** 1–5 stars from the employer toward the worker; set once per timesheet. */
+    employer_rating_worker: { type: Number, default: null },
   },
   { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } },
 )

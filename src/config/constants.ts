@@ -22,3 +22,6 @@ export const OTP_LOCK_MINUTES = 15
 export const OTP_RATE_DEVICE_PER_HOUR = 10
 /** Max OTP “request-otp” calls per phone/email per rolling hour. */
 export const OTP_RATE_TARGET_PER_HOUR = 5
+
+/** Short-lived JWT after email OTP when admin must complete authenticator (seconds). */
+export const MFA_TOKEN_TTL_SEC = 300

@@ -34,3 +34,7 @@ export async function findByIds(ids: string[]): Promise<CategoryDoc[]> {
   if (ids.length === 0) return []
   return CategoryModel.find({ _id: { $in: ids } }).exec()
 }
+
+export async function listAll(): Promise<CategoryDoc[]> {
+  return CategoryModel.find({}).sort({ name: 1 }).exec()
+}

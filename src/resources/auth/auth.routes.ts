@@ -11,8 +11,11 @@ import { asyncHandler } from '../../utils/asyncHandler.js'
 
 const router = Router()
 
+router.get('/login-ui', asyncHandler(authController.getLoginUiSettings))
 router.post('/request-otp', asyncHandler(authController.requestOtp))
+router.post('/login-password', asyncHandler(authController.loginPassword))
 router.post('/verify-otp', asyncHandler(authController.verifyOtp))
+router.post('/verify-admin-totp', asyncHandler(authController.verifyAdminTotp))
 router.post('/refresh-token', asyncHandler(authController.refreshToken))
 
 export { router as authRouter }

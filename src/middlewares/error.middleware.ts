@@ -38,6 +38,10 @@ export function errorHandler(
     return
   }
 
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('[error]', err)
+  }
+
   res.status(500).json({
     status: 'error',
     message: 'Internal server error',

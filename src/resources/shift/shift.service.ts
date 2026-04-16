@@ -12,6 +12,7 @@ import * as timesheetRepo from '../timesheet/timesheet.repo.js'
 import * as shiftApplicationRepo from './shiftApplication.repo.js'
 import * as shiftRepo from './shift.repo.js'
 import { AppError } from '../../utils/errors.js'
+import { safeRatingAvg } from '../../utils/rating.js'
 import { haversineKm } from '../../utils/geo.js'
 import type { CategoryDoc } from '../worker/category.model.js'
 import type { EmployerProfileDoc } from './employerProfile.model.js'
@@ -187,7 +188,7 @@ function buildListItem(
       id: empSafe._id,
       company_name: empSafe.company_name,
       logo_url: empSafe.logo_url ?? null,
-      rating_avg: empSafe.rating_avg,
+      rating_avg: safeRatingAvg(empSafe.rating_avg),
       verified: empSafe.verified,
     },
     date: formatShiftDay(s.date),
@@ -354,7 +355,7 @@ export async function getShiftDetail(
       id: empSafe._id,
       company_name: empSafe.company_name,
       logo_url: empSafe.logo_url ?? null,
-      rating_avg: empSafe.rating_avg,
+      rating_avg: safeRatingAvg(empSafe.rating_avg),
       verified: empSafe.verified,
       total_shifts_posted: empSafe.total_shifts_posted,
     },
@@ -470,7 +471,7 @@ export async function listMyApplications(
         employer: {
           company_name: emp?.company_name ?? 'Unknown',
           logo_url: emp?.logo_url ?? null,
-          rating_avg: emp?.rating_avg ?? 0,
+          rating_avg: safeRatingAvg(emp?.rating_avg),
         },
       },
       timesheet: ts

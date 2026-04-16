@@ -37,3 +37,28 @@ export function verifyAccessToken(token: string, secret: string): AccessPayload 
   }
   return { sub, role }
 }
+
+type MfaPayload = {
+  sub: string
+  /** Avoid `typ` — jsonwebtoken reserves payload/header claim handling in some paths. */
+  purpose: 'mfa'
+}
+
+/** Issued after email OTP when admin must complete TOTP; not valid for API routes. */
+export function signMfaToken(userId: string, secret: string, expiresInSec: number): string {
+  const payload: MfaPayload = { sub: userId, purpose: 'mfa' }
+  return jwt.sign(payload, secret, { expiresIn: expiresInSec, algorithm: 'HS256' })
+}
+
+export function verifyMfaToken(token: string, secret: string): { sub: string } {
+  const decoded = jwt.verify(token, secret)
+  if (typeof decoded !== 'object' || decoded === null) {
+    throw new Error('Invalid MFA token payload')
+  }
+  const sub = (decoded as { sub?: unknown }).sub
+  const purpose = (decoded as { purpose?: unknown }).purpose
+  if (typeof sub !== 'string' || purpose !== 'mfa') {
+    throw new Error('Invalid MFA token payload')
+  }
+  return { sub }
+}

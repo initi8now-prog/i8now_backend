@@ -44,3 +44,10 @@ export const clockOutBodySchema = z
   )
 
 export type ClockOutBody = z.infer<typeof clockOutBodySchema>
+
+/** POST /timesheets/:id/rate-employer — worker gives 1–5 stars to the employer after approval. */
+export const rateEmployerBodySchema = z.object({
+  stars: z.number().int().min(1).max(5),
+})
+
+export type RateEmployerBody = z.infer<typeof rateEmployerBodySchema>

@@ -28,6 +28,10 @@ const workerProfileSchema = new mongoose.Schema(
       default: 'unverified',
     },
     rating_avg: { type: Number, default: 0 },
+    /** How many employer→worker star ratings contributed to `rating_avg`. */
+    rating_count: { type: Number, default: 0 },
+    /** Admin user ids that already gave direct admin rating for this worker profile. */
+    admin_rater_user_ids: { type: [String], default: [] },
     total_shifts: { type: Number, default: 0 },
     /** Ordered list of Category._id values the worker selected (PUT /workers/categories). */
     category_ids: { type: [String], default: [] },
@@ -36,6 +40,8 @@ const workerProfileSchema = new mongoose.Schema(
     payout_masked_account: { type: String, default: null },
     payout_upi_id: { type: String, default: null },
     payout_verified: { type: Boolean, default: false },
+    /** Last KYC decision note from admin (optional). */
+    kyc_review_note: { type: String, default: null },
   },
   { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } },
 )

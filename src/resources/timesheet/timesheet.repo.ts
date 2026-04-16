@@ -77,3 +77,45 @@ export async function updateClockOut(
     { new: true },
   ).exec()
 }
+
+/** Sets worker→employer stars once per timesheet (only when still null and job is settled). */
+export async function setWorkerRatingForEmployer(
+  timesheetId: string,
+  stars: number,
+): Promise<TimesheetDoc | null> {
+  return TimesheetModel.findOneAndUpdate(
+    {
+      _id: timesheetId,
+      worker_rating_employer: null,
+      status: { $in: ['approved', 'paid'] },
+    },
+    { $set: { worker_rating_employer: stars } },
+    { new: true },
+  ).exec()
+}
+
+/** Clears worker→employer rating (e.g. rollback if aggregate update fails). */
+export async function clearWorkerRatingForEmployer(timesheetId: string): Promise<void> {
+  await TimesheetModel.updateOne({ _id: timesheetId }, { $set: { worker_rating_employer: null } }).exec()
+}
+
+/** Sets employer→worker stars once per timesheet (only when still null and job is settled). */
+export async function setEmployerRatingForWorker(
+  timesheetId: string,
+  stars: number,
+): Promise<TimesheetDoc | null> {
+  return TimesheetModel.findOneAndUpdate(
+    {
+      _id: timesheetId,
+      employer_rating_worker: null,
+      status: { $in: ['approved', 'paid'] },
+    },
+    { $set: { employer_rating_worker: stars } },
+    { new: true },
+  ).exec()
+}
+
+/** Clears employer→worker rating (rollback). */
+export async function clearEmployerRatingForWorker(timesheetId: string): Promise<void> {
+  await TimesheetModel.updateOne({ _id: timesheetId }, { $set: { employer_rating_worker: null } }).exec()
+}
